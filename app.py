@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expenses.db'
@@ -17,12 +18,16 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(100), nullable=False)
 
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
     user_id = db.Column(db.Integer, nullable=True)
+    category = db.relationship('Category', backref='expenses')
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -69,6 +74,47 @@ def add_category():
     flash(f'Category "{category_name}" added successfully.', 'success')
     return redirect(url_for('categories'))
 # ... (other routes remain unchanged)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    # Implement user login logic here
+    if request.method == 'POST':
+        # Handle form submission and user login
+        flash('Login successful.', 'success')
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+@app.route('/edit_expense/<int:expense_id>', methods=['GET', 'POST'])
+@login_required
+def edit_expense(expense_id):
+    # Implement expense editing logic here
+    expense = Expense.query.get_or_404(expense_id)
+    if current_user != expense.user:
+        abort(403)  # User is not authorized to edit this expense
+
+    if request.method == 'POST':
+        # Handle form submission and update expense
+        flash('Expense updated successfully.', 'success')
+        return redirect(url_for('index'))
+    return render_template('edit_expense.html', expense=expense)
+
+@app.route('/delete_expense/<int:expense_id>', methods=['POST'])
+@login_required
+def delete_expense(expense_id):
+    # Implement expense deletion logic here
+    expense = Expense.query.get_or_404(expense_id)
+    if current_user != expense.user:
+        abort(403)  # User is not authorized to delete this expense
+
+    db.session.delete(expense)
+    db.session.commit()
+    flash('Expense deleted successfully.', 'success')
+    return redirect(url_for('index'))
+
+@app.route('/profile')
+@login_required
+def profile():
+    # Implement user profile logic here
 
 if __name__ == '__main__':
     with app.app_context():
